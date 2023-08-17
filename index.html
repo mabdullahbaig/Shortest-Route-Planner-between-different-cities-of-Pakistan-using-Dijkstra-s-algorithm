@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="stylesheet" href="leaflet/dist/leaflet.css" />
+    
+      <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="map"></div>
+    <div id = container>
+        <label for="start">Start:</label>
+        <select id="start">
+            <option value="">Select start location</option>
+        </select>
+        <label for="end">End:</label>
+        <select id="end">
+            <option value="">Select end location</option>
+        </select>
+        <button onclick="findShortestRoute()">Find Shortest Route</button>
+    </div>
+
+    <script src="leaflet/dist/leaflet.js"></script>
+    <script>
+        var map;
+        var markers = {};
+        var connections = [
+            ["Faisalabad", "Lahore"],
+            ["Faisalabad", "Islamabad"],
+            ["Faisalabad", "Multan"],
+            ["Lahore", "Faisalabad"],
+            ["Lahore", "Karachi"],
+            ["Lahore", "Multan"],
+            ["Islamabad", "Faisalabad"],
+            ["Islamabad", "Multan"],
+            ["Islamabad", "Lahore"],
+            ["Multan", "Karachi"],
+            ["Multan", "Quetta"],
+            ["Multan", "Islamabad"],
+            ["Karachi", "Quetta"],
+            ["Karachi", "Multan"],
+            ["Karachi", "Lahore"],
+            ["Quetta", "Multan"],
+            ["Quetta", "Karachi"],
+            ["Quetta", "Lahore"],
+            ["Rahim Yar Khan", "Multan"],
+            ["Rahim Yar Khan", "Quetta"],
+            ["Rahim Yar Khan", "Islamabad"],
+            ["Rahim Yar Khan", "Lahore"],
+            ["Rahim Yar Khan", "Karachi"],
+
+        ];
+
+        var graph = createGraph(connections);
+
+        function initMap() {
+            // Create a map centered around Faisalabad
+            var center = [31.5204, 73.0551];
+            map = L.map('map').setView(center, 5);
+
+            // Add tile layer to the map
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+                maxZoom: 18,
+            }).addTo(map);
+
+            // Add markers to the map
+            for (var i = 0; i < connections.length; i++) {
+                var connection = connections[i];
+                for (var j = 0; j < connection.length; j++) {
+                    var location = connection[j];
+                    if (!markers[location]) {
+                        var marker = L.marker(getLatLng(location)).addTo(map);
+                        marker.bindPopup(location);
+                        markers[location] = marker;
+                    }
+                }
+            }
+
+            for (var j = 0; j < connections.length; j++) {
+                var connection = connections[j];
+                var startLocation = connection[0];
+                var endLocation = connection[1];
+                var startLatLng = getLatLng(startLocation);
+                var endLatLng = getLatLng(endLocation);
+                var polyline = L.polyline([startLatLng, endLatLng], { color: 'red' }).addTo(map);
+            }
+
+            // Populate start and end location select options
+            var startSelect = document.getElementById('start');
+            var endSelect = document.getElementById('end');
+            var locations = Object.keys(markers);
+            for (var i = 0; i < locations.length; i++) {
+                var location = locations[i];
+                var option = document.createElement('option');
+                option.value = location;
+                option.innerHTML = location;
+                startSelect.appendChild(option);
+
+                option = document.createElement('option');
+                option.value = location;
+                option.innerHTML = location;
+                endSelect.appendChild(option);
+            }
+        }
+
+        function createGraph(connections) {
+            var graph = {};
+            for (var i = 0; i < connections.length; i++) {
+                var connection = connections[i];
+                var nodeA = connection[0];
+                var nodeB = connection[1];
+                var distance = calculateDistance(nodeA, nodeB); 
+                if (!graph[nodeA]) {
+                    graph[nodeA] = [];
+                }
+                if (!graph[nodeB]) {
+                    graph[nodeB] = [];
+                }
+                graph[nodeA].push([nodeB, distance]);
+                graph[nodeB].push([nodeA, distance]);
+            }
+            return graph;
+        }
+
+        function calculateDistance(nodeA, nodeB) {
+            //  implementation of distance calculation algorithm here
+            // For simplicity, let's assume the distance is 1 for all connections
+            return 1;
+        }
+
+        function getLatLng(location) {
+            var locations = {
+                "Faisalabad": [31.5204, 73.0551],
+                "Lahore": [31.5820, 74.3294],
+                "Islamabad": [33.6844, 73.0479],
+                "Karachi": [24.8607, 67.0011],
+                "Multan": [30.1835, 71.5249],
+                "Quetta": [30.1798, 66.9750],
+                "Rahim Yar Khan": [28.4202, 70.2957],
+            };
+            return locations[location];
+        }
+
+
+        function findShortestRoute() {
+            var start = document.getElementById('start').value;
+            var end = document.getElementById('end').value;
+
+            if (start && end) {
+                // Apply Dijkstra's algorithm to find the shortest route
+                var shortestPath = dijkstra(start, end, graph);
+
+                if (shortestPath.length > 0) {
+                    // Clear previous polylines
+                    map.eachLayer(function (layer) {
+                        if (layer instanceof L.Polyline) {
+                            map.removeLayer(layer);
+                        }
+                    });
+
+                    // Display the shortest route
+                    var routeCoordinates = shortestPath.map(function (location) {
+                        return getLatLng(location);
+                    });
+
+                    var polyline = L.polyline(routeCoordinates, { color: 'orange' }).addTo(map);
+                    map.fitBounds(polyline.getBounds());
+                } else {
+                    console.log('No route found.');
+                }
+            } else {
+                console.log('Please select both start and end locations.');
+            }
+        }
+
+        function dijkstra(source, destination, graph) {
+            var nodes = Object.keys(graph);
+            var distances = {};
+            var previous = {};
+            var queue = [];
+
+            // Initialize distances and previous nodes
+            for (var i = 0; i < nodes.length; i++) {
+                var node = nodes[i];
+                distances[node] = node === source ? 0 : Infinity;
+                previous[node] = null;
+                queue.push(node);
+            }
+
+            while (queue.length > 0) {
+                // Find the node with the smallest distance
+                var smallestDistanceNode = queue.reduce(function (a, b) {
+                    return distances[a] < distances[b] ? a : b;
+                });
+
+                // Remove the node from the queue
+                queue.splice(queue.indexOf(smallestDistanceNode), 1);
+
+                if (smallestDistanceNode === destination) {
+                    // Build and return the path
+                    var path = [];
+                    var currentNode = destination;
+                    while (currentNode !== null) {
+                        path.unshift(currentNode);
+                        currentNode = previous[currentNode];
+                    }
+                    return path;
+                }
+
+                if (distances[smallestDistanceNode] === Infinity) {
+                    break;
+                }
+
+                // Calculate distances to neighboring nodes
+                var neighbors = graph[smallestDistanceNode];
+                for (var j = 0; j < neighbors.length; j++) {
+                    var neighbor = neighbors[j][0];
+                    var distance = distances[smallestDistanceNode] + neighbors[j][1];
+                    if (distance < distances[neighbor]) {
+                        distances[neighbor] = distance;
+                        previous[neighbor] = smallestDistanceNode;
+                    }
+                }
+            }
+
+            // No path found
+            return [];
+        }
+
+        initMap();
+    </script>
+</body>
+
+</html>
